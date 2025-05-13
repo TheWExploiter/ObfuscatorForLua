@@ -64,7 +64,7 @@ function obfuscateLua(code) {
     
     const finalCode = `
 --[[
-Hidden Trash code inserted but will not execute
+Obfuscator V3.2
 ]]
 ${head}
 ${trash}
