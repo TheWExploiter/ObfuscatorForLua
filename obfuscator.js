@@ -1,102 +1,97 @@
 function randomString(length = 15) {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 }
 
 function insertTrashCode(lines = 99) {
-  let trash = '';
-  for (let i = 0; i < lines; i++) {
-    const rand = randomString();
-    trash += `local ${rand} = ${Math.random().toFixed(5)}
-`;
-    trash += `if false then print("${randomString()}") end
-`;
-  }
-  return trash;
+    let trash = '';
+    for (let i = 0; i < lines; i++) {
+        const rand = randomString();
+        trash += `local ${rand} = ${Math.random().toFixed(5)}; `;
+        trash += `if false then print("${randomString()}") end; `;
+    }
+    return trash;
 }
 
 function insertConfusionCode(lines = 15) {
-  let conf = '';
-  for (let i = 0; i < lines; i++) {
-    const var1 = randomString();
-    const var2 = randomString();
-    conf += `local ${var1} = function() return ${Math.floor(Math.random() * 500)} end
-`;
-    conf += `local ${var2} = ${var1}()
-`;
-    conf += `if ${var2} == ${Math.floor(Math.random() * 1000)} then error("random") end
-`;
-  }
-  return conf;
+    let conf = '';
+    for (let i = 0; i < lines; i++) {
+        const var1 = randomString();
+        const var2 = randomString();
+        conf += `local ${var1} = function() return ${Math.floor(Math.random() * 500)} end; `;
+        conf += `local ${var2} = ${var1}(); `;
+        conf += `if ${var2} == ${Math.floor(Math.random() * 1000)} then error("random") end; `;
+    }
+    return conf;
 }
 
 function renameVariablesDeep(code) {
-  const map = {};
-  return code.replace(/local\s+(\w+)/g, (match, name) => {
-    if (!map[name]) map[name] = randomString();
-    return `local ${map[name]}`;
-  }).replace(/(\W|^)(\w+)(\W|$)/g, (match, pre, word, post) => {
-    return map[word] ? `${pre}${map[word]}${post}` : match;
-  });
+    const map = {};
+    return code.replace(/local\s+(\w+)/g, (match, name) => {
+        if (!map[name]) map[name] = randomString();
+        return `local ${map[name]}`;
+    }).replace(/(\W|^)(\w+)(\W|$)/g, (match, pre, word, post) => {
+        return map[word] ? `${pre}${map[word]}${post}` : match;
+    });
+}
+
+function encodeBase64(str) {
+    return Buffer.from(str).toString('base64');
 }
 
 function obfuscateLua(code) {
-  const head = '-- This File Was Protected By Cats Obfuscator V1\n\n';
-  const trash = insertTrashCode(99);
-  const confusion = insertConfusionCode(15);
-  const renamed = renameVariablesDeep(code);
-  return head + trash + renamed + '\n' + confusion;
+    const head = '-- This File Was Protected By Cats Obfuscator V1\n\n';
+    const trash = insertTrashCode(99);
+    const confusion = insertConfusionCode(15);
+    const renamed = renameVariablesDeep(code);
+
+    // Hide loadstring by encoding it as Base64
+    const loadstringCode = `loadstring(game:GetService("HttpService"):Base64Decode("${encodeBase64(code)}"))()`;
+
+    return head + trash + renamed + '\n' + loadstringCode + '\n' + confusion;
 }
 
 function downloadFile(filename, content) {
-  const blob = new Blob([content], { type: 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 
 function sendToWebhook(webhookURL, original, obfuscated) {
-  if (!webhookURL) return;
+    if (!webhookURL) return;
 
-  const payload = {
-    content: '**New Lua Obfuscation**',
-    embeds: [
-      {
-        title: 'Original Code',
-        description: '```lua\n' + original.slice(0, 1900) + '\n```'
-      },
-      {
-        title: 'Obfuscated Code',
-        description: '```lua\n' + obfuscated.slice(0, 1900) + '\n```'
-      }
-    ]
-  };
+    const payload = {
+        content: 'New Lua Obfuscation',
+        embeds: [{
+            title: 'Original Code',
+            description: 'lua\n' + original.slice(0, 1900) + '\n'
+        }, {
+            title: 'Obfuscated Code',
+            description: 'lua\n' + obfuscated.slice(0, 1900) + '\n'
+        }]
+    };
 
-  fetch(webhookURL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  }).catch(console.error);
+    fetch(webhookURL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(console.error);
 }
 
 document.getElementById('obfuscateBtn').onclick = () => {
-  const input = document.getElementById('inputCode');
-  const output = document.getElementById('output');
-  const webhook = document.getElementById('webhookUrl').value;
+    const input = document.getElementById('inputCode');
+    const output = document.getElementById('output');
+    const webhook = document.getElementById('webhookUrl').value;
 
-  if (!input || !output) return alert('Missing input/output elements.');
-  if (!input.value.trim()) return alert('Paste some Lua code first.');
+    if (!input || !output) return alert('Missing input/output elements.');
+    if (!input.value.trim()) return alert('Paste some Lua code first.');
 
-  const originalCode = input.value.trim();
-  const obfuscated = obfuscateLua(originalCode);
+    const originalCode = input.value.trim();
+    const obfuscated = obfuscateLua(originalCode);
 
-  output.value = obfuscated;
-
-  sendToWebhook(webhook, originalCode, obfuscated);
-  downloadFile('ObfuscatedFile.lua', obfuscated);
+    output.value = obfuscated;
+    sendToWebhook(webhook, originalCode, obfuscated);
+    downloadFile('ObfuscatedFile.lua', obfuscated);
 };
