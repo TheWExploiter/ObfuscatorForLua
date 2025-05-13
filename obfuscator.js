@@ -1,53 +1,75 @@
-function base64(str) {
-  return btoa(unescape(encodeURIComponent(str)));
+function randomString(length = 8) {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 }
 
-function stringEncrypt(str) {
-  const encoded = base64(str).split('').reverse().join('');
-  return `string.reverse('${encoded}')`;
+function insertTrashCode(lines = 15) {
+  let trash = '';
+  for (let i = 0; i < lines; i++) {
+    const rand = randomString();
+    trash += `-- junk\\nlocal ${rand} = ${Math.random().toFixed(5)}\\n`;
+    trash += `if false then print("${randomString()}") end\\n`;
+  }
+  return trash;
 }
 
-function flattenControl(code) {
-  const lines = code.split(/\n+/);
-  let result = 'local __flow = {...}; local __i = 1; while __i <= #__flow do __flow[__i]() __i = __i + 1 end\n';
-  result += 'local function junk1() end local function junk2() end\n';
-  lines.forEach((line, i) => {
-    result += `__flow[${i+1}] = function() ${line} end\n`;
+function renameVariablesDeep(code) {
+  const map = {};
+  return code.replace(/local\\s+(\\w+)/g, (match, name) => {
+    if (!map[name]) map[name] = randomString();
+    return `local ${map[name]}`;
+  }).replace(/(\\W|^)(\\w+)(\\W|$)/g, (match, pre, word, post) => {
+    return map[word] ? `${pre}${map[word]}${post}` : match;
   });
-  return result;
 }
 
-function deepObfuscate(code) {
-  let final = '';
-  final += '-- Obfuscated by Cats Obfuscator\n';
-  final += '-- Good Obfuscator\n\n';
-  final += 'local nonsense = 1*1 + 0/1 - 0\n';
-  final += flattenControl(code);
-  final += '\n-- V1.2\nif false then while true do print(math.random()) end end\n';
-  return final;
+function obfuscateLua(code) {
+  const head = '-- Obfuscated by Maximum V5🔥🗿 [MAX+++++]\\n-- Good luck lol\\n\\n';
+  const trashStart = insertTrashCode(20);
+  const trashEnd = insertTrashCode(10);
+  const renamed = renameVariablesDeep(code);
+  return head + trashStart + renamed + '\\n' + trashEnd;
 }
 
-const webhookUrl = document.getElementById('webhookUrl').value; // input field in HTML
-sendToWebhook(webhookUrl, originalCode, obfuscatedCode);
+function downloadFile(filename, content) {
+  const blob = new Blob([content], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
 
-function sendToWebhook(webhookUrl, originalCode, obfuscatedCode) {
-  if (!webhookUrl) return;
+function sendToWebhook(webhookURL, original, obfuscated) {
+  if (!webhookURL) return;
 
-  fetch(webhookUrl, {
+  const payload = {
+    content: '**New Lua Obfuscation**',
+    embeds: [
+      {
+        title: 'Original Code',
+        description: '```lua\\n' + original.slice(0, 1900) + '\\n```'
+      },
+      {
+        title: 'Obfuscated Code',
+        description: '```lua\\n' + obfuscated.slice(0, 1900) + '\\n```'
+      }
+    ]
+  };
+
+  fetch(webhookURL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      content: '**New Lua Obfuscation Submitted!**',
-      embeds: [
-        {
-          title: 'Original Lua Code',
-          description: '```lua\\n' + originalCode.slice(0, 1900) + '\\n```'
-        },
-        {
-          title: 'Obfuscated Code',
-          description: '```lua\\n' + obfuscatedCode.slice(0, 1900) + '\\n```'
-        }
-      ]
-    })
+    body: JSON.stringify(payload)
   });
 }
+
+document.getElementById('obfuscateBtn').onclick = () => {
+  const inputCode = document.getElementById('luaInput').value;
+  const webhook = document.getElementById('webhookUrl').value;
+
+  const obfuscated = obfuscateLua(inputCode);
+  document.getElementById('output').value = obfuscated;
+
+  sendToWebhook(webhook, inputCode, obfuscated);
+  downloadFile('ObfuscatedFile.lua', obfuscated);
+};
