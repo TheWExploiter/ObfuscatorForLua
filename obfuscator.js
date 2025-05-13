@@ -64,7 +64,7 @@ function sendToWebhook(webhookURL, original, obfuscated) {
 }
 
 document.getElementById('obfuscateBtn').onclick = () => {
-  const inputCode = document.getElementById('luaInput').value;
+  const inputCode = document.getElementById('inputCode').value;
   const webhook = document.getElementById('webhookUrl').value;
 
   const obfuscated = obfuscateLua(inputCode);
