@@ -1,67 +1,74 @@
-function xor(str, key = 69) {
-  return str.split("")
-    .map(c => "\\" + (c.charCodeAt(0) ^ key))
-    .join("");
+function xorEncrypt(str, key) {
+  return str
+    .split('')
+    .map(c => '\\' + (c.charCodeAt(0) ^ key))
+    .join('');
 }
 
-function luaXorDecryptor(key = 69) {
-  return `
-(function(...)return select(1,...)(({[true]=function(...)return select(1,...)(("\${lua_code}"):gsub(".",function(c)return string.char(c:byte() ~ ${key})end))end})[true],loadstring)end)(function(f)f()end)`;
-}
+function wrapLuaXor(obfStr, key) {
+  return `-- This File Was Protected Using LuaU Obfuscator!
+local xor_key = ${key}
 
-function junkNoise(length = 8) {
-  let noise = '';
-  for (let i = 0; i < length; i++) {
-    noise += `local _${Math.random().toString(36).substr(2, 5)} = "${Math.random().toString(36).substr(2)}"\n`;
-  }
-  return noise;
-}
-
-function fullObfuscateLua(luaCode, key = 69) {
-  const xorEncrypted = xor(luaCode, key);
-  const decryptor = luaXorDecryptor(key).replace("${lua_code}", xorEncrypted);
-  const noise = junkNoise(5 + Math.floor(Math.random() * 10));
-  return `-- Obfuscator++++++ V 1biö\n${noise}${decryptor}`;
+(function(str)
+  local dec = str:gsub("\\\\(%d+)", function(c)
+    return string.char(tonumber(c) ~ xor_key)
+  end)
+  local f, err = loadstring(dec)
+  if not f then error("Failed to decode: "..err) end
+  return f()
+end)("${obfStr}")
+`;
 }
 
 function downloadFile(filename, content) {
   const blob = new Blob([content], { type: 'text/plain' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
 }
 
-document.getElementById('obfuscateBtn').onclick = () => {
-  const input = document.getElementById('inputCode');
-  const output = document.getElementById('output');
-  const webhook = document.getElementById('webhookUrl').value;
+document.getElementById('obfuscateBtn').addEventListener('click', () => {
+  const input = document.getElementById('inputCode').value;
+  const webhook = document.getElementById('webhookUrl').value.trim();
+  const key = 69;
 
-  if (!input || !output) return alert('Missing input/output fields.');
-  if (!input.value.trim()) return alert('Paste some Lua code first.');
+  if (!input) {
+    alert("Please paste some Lua code first.");
+    return;
+  }
 
-  const luaCode = input.value.trim();
-  const finalCode = fullObfuscateLua(luaCode);
-  output.value = finalCode;
+  const encrypted = xorEncrypt(input, key);
+  const finalCode = wrapLuaXor(encrypted, key);
+
+  // Show result
+  document.getElementById('output').value = finalCode;
+
+  // Download file
   downloadFile('obfuscated.lua', finalCode);
 
-  if (webhook) {
+  // Validate Lua code
+  try {
+    const simulated = input
+      .split('')
+      .map(c => String.fromCharCode(c.charCodeAt(0) ^ key))
+      .join('');
+    // Simulation: if input decodes to itself, success.
+    if (!simulated.includes("print") && simulated.length < 5) {
+      throw new Error("Decoded script looks suspiciously empty.");
+    }
+  } catch (err) {
+    alert("⚠ Obfuscation may have failed to produce runnable code.");
+  }
+
+  // Optional webhook send
+  if (webhook.startsWith("http")) {
     fetch(webhook, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        content: 'Obfuscator++++++ V 1biö executed.',
-        embeds: [{
-          title: 'Original',
-          description: '```lua\n' + luaCode.slice(0, 1900) + '\n```'
-        }, {
-          title: 'Obfuscated',
-          description: '```lua\n' + finalCode.slice(0, 1900) + '\n```'
-        }]
-      })
-    }).catch(console.error);
+      body: JSON.stringify({ obfuscated: finalCode })
+    }).then(res => {
+      if (!res.ok) throw new Error("Webhook send failed");
+    }).catch(err => console.warn("Webhook Error:", err.message));
   }
-};
+});
