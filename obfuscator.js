@@ -1,3 +1,5 @@
+const XOR_KEY = 69;
+
 function xorEncrypt(str, key) {
   return str
     .split('')
@@ -5,122 +7,129 @@ function xorEncrypt(str, key) {
     .join('');
 }
 
-function randomVar(length = 6) {
-  return '_' + Math.random().toString(36).substring(2, 2 + length);
-}
+function wrapLua(obfStr, options = {}) {
+  const { constProtect = false, maxSecurity = false, antiTamper = false } = options;
 
-function generateLuaVersionCheck() {
-  return `
-if not _VERSION:match("5%.3") and not string.pack then
-  error("Unsupported Lua version! Requires Lua 5.3+ or LuaU")
+  const versionCheckCode = maxSecurity ? `
+if not (_VERSION:match("5%.3") or string.pack) then
+  return
 end
-`;
-}
+` : '';
 
-function generateBitLibSupport() {
-  return `
-local bit = bit32 or require("bit")
-`;
-}
-
-function generateAntiTamper(checkStr, key) {
-  const obf = xorEncrypt(checkStr, key);
-  const varName = randomVar();
-  return `
-local function ${varName}()
-  local raw = "${obf}"
+  const antiTamperCode = antiTamper ? `
+local function silentAntiTamper()
+  local raw = "\\8\\4\\29\\12\\8\\16\\8\\19\\112"
   local decoded = raw:gsub("\\\\(%d+)", function(n)
-    return string.char(bit.bxor(tonumber(n), ${key}))
+    return string.char(bit.bxor(tonumber(n), ${XOR_KEY}))
   end)
-  if decoded ~= "${checkStr}" then
-    error("⚠ Tampering Detected")
+  if decoded ~= "MAXIMUMV5" then
+    return
   end
+  return true
 end
-${varName}()
-`;
-}
 
-function generateConstantProtection(lua) {
-  return lua.replace(/(["'])([^"']+)\1/g, (_, quote, val) => {
-    if (val.length > 1 && isNaN(val)) {
-      const enc = val.split('').map(c => '\\' + c.charCodeAt(0)).join('');
-      return `"${enc}":gsub("\\\\(%d+)", function(c) return string.char(tonumber(c)) end)`;
-    }
-    return quote + val + quote;
-  });
-}
+if not silentAntiTamper() then
+  return
+end
+` : '';
 
-function wrapLuaCode(encrypted, key, opts) {
-  const decoderVar = randomVar();
-  let code = `
--- This File Was Protected by Lua Obfuscator V5 🔐
-${opts.versionCheck ? generateLuaVersionCheck() : ''}
-${generateBitLibSupport()}
+  const constProtectCode = constProtect ? `
+local function constantProtection()
+  local dummy = {}
+  setmetatable(dummy, {
+    __index = function() error("Constant modification detected") end,
+    __newindex = function() error("Constant modification detected") end
+  })
+  _G.CONST = dummy
+end
+constantProtection()
+` : '';
 
-local function ${decoderVar}(s)
-  return s:gsub("\\\\(%d+)", function(n)
-    return string.char(bit.bxor(tonumber(n), ${key}))
+  return `do local _ = "\\35\\36\\46\\32" end
+
+${versionCheckCode}
+
+local bit = bit32 or require("bit")
+
+local function decode(str)
+  return str:gsub("\\\\(%d+)", function(n)
+    return string.char(bit.bxor(tonumber(n), ${XOR_KEY}))
   end)
 end
 
-${opts.antiTamper ? generateAntiTamper("MAXIMUMV5", key) : ''}
+${antiTamperCode}
 
-local f, err = loadstring(${decoderVar}("${encrypted}"))
-if not f then error("Obfuscation error: "..err) end
+${constProtectCode}
+
+local f, err = loadstring(decode("${obfStr}"))
+if not f then
+  return
+end
+
 return f()
 `;
-
-  if (opts.maxSecurity) {
-    const dummy = randomVar();
-    code = `do local ${dummy} = "${xorEncrypt("fake", key)}" end\n` + code;
-  }
-
-  return code;
 }
 
-function downloadFile(name, content) {
+function downloadFile(filename, content) {
   const blob = new Blob([content], { type: 'text/plain' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = name;
-  link.click();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
-document.getElementById('obfuscateBtn').addEventListener('click', () => {
-  const input = document.getElementById('inputCode').value;
-  const webhook = document.getElementById('webhookUrl').value.trim();
-  const key = 69;
+async function sendWebhook(webhookUrl, data) {
+  if (!webhookUrl.startsWith('http')) return;
+  try {
+    const res = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ obfuscated: data }),
+    });
+    if (!res.ok) throw new Error('Webhook send failed');
+    console.log('Webhook sent successfully');
+  } catch (e) {
+    console.warn('Webhook error:', e.message);
+  }
+}
 
-  const useConstProtect = document.getElementById('constProtect').checked;
-  const useMaxSecurity = document.getElementById('maxSecurity').checked;
-  const useAntiTamper = document.getElementById('antiTamper').checked;
-
-  if (!input) {
-    alert("⚠ Paste some Lua code first.");
+document.getElementById('obfuscateBtn').addEventListener('click', async () => {
+  const inputCodeRaw = document.getElementById('inputCode').value;
+  if (!inputCodeRaw.trim()) {
+    alert("Paste some Lua code first.");
     return;
   }
 
-  let processed = input;
+  const webhookUrl = document.getElementById('webhookUrl').value.trim();
+  const constProtect = document.getElementById('constProtect').checked;
+  const maxSecurity = document.getElementById('maxSecurity').checked;
+  const antiTamper = document.getElementById('antiTamper').checked;
 
-  if (useConstProtect) {
-    processed = generateConstantProtection(processed);
+  // Split the input into lines
+  const lines = inputCodeRaw.split('\n');
+
+  // Detect if first line is the special comment to keep intact
+  let headerLine = '';
+  let codeToObfuscate = inputCodeRaw;
+  if (lines.length > 0 && lines[0].trim().startsWith('-- This File Was')) {
+    headerLine = lines[0];
+    codeToObfuscate = lines.slice(1).join('\n');
   }
 
-  const encrypted = xorEncrypt(processed, key);
-  const finalCode = wrapLuaCode(encrypted, key, {
-    antiTamper: useAntiTamper,
-    maxSecurity: useMaxSecurity,
-    versionCheck: true,
-  });
+  const encrypted = xorEncrypt(codeToObfuscate, XOR_KEY);
+  const finalCodeBody = wrapLua(encrypted, { constProtect, maxSecurity, antiTamper });
+
+  // Put header line back on top if it existed
+  const finalCode = headerLine
+    ? headerLine + '\n' + finalCodeBody
+    : finalCodeBody;
 
   document.getElementById('output').value = finalCode;
-  downloadFile("obfuscated.lua", finalCode);
 
-  if (webhook.startsWith("http")) {
-    fetch(webhook, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ obfuscated: finalCode })
-    }).catch(err => console.warn("Webhook error:", err));
+  downloadFile('obfuscated.lua', finalCode);
+
+  if (webhookUrl) {
+    await sendWebhook(webhookUrl, finalCode);
   }
 });
