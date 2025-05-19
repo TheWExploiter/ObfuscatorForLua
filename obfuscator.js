@@ -17,6 +17,12 @@ end
 `;
 }
 
+function generateBitLibSupport() {
+  return `
+local bit = bit32 or require("bit")
+`;
+}
+
 function generateAntiTamper(checkStr, key) {
   const obf = xorEncrypt(checkStr, key);
   const varName = randomVar();
@@ -24,7 +30,7 @@ function generateAntiTamper(checkStr, key) {
 local function ${varName}()
   local raw = "${obf}"
   local decoded = raw:gsub("\\\\(%d+)", function(n)
-    return string.char(tonumber(n) ~ ${key})
+    return string.char(bit.bxor(tonumber(n), ${key}))
   end)
   if decoded ~= "${checkStr}" then
     error("⚠ Tampering Detected")
@@ -49,10 +55,11 @@ function wrapLuaCode(encrypted, key, opts) {
   let code = `
 -- Protected by LuaU Obfuscator V5 🔐
 ${opts.versionCheck ? generateLuaVersionCheck() : ''}
+${generateBitLibSupport()}
 
 local function ${decoderVar}(s)
   return s:gsub("\\\\(%d+)", function(n)
-    return string.char(tonumber(n) ~ ${key})
+    return string.char(bit.bxor(tonumber(n), ${key}))
   end)
 end
 
