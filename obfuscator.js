@@ -9,65 +9,73 @@ function randomVar(length = 6) {
   return '_' + Math.random().toString(36).substring(2, 2 + length);
 }
 
-function generateAntiTamper(checkString, key) {
-  const obf = xorEncrypt(checkString, key);
+function generateLuaVersionCheck() {
   return `
-local tamperCheck = function()
-  local _k = (${key} ~ 0)
-  local raw = "${obf}"
-  local check = raw:gsub("\\\\(%d+)", function(c)
-    return string.char(tonumber(c) ~ _k)
-  end)
-  if check ~= "${checkString}" then
-    error("Tampering Detected 🛡️")
-  end
+if not _VERSION:match("5%.3") and not string.pack then
+  error("Unsupported Lua version! Requires Lua 5.3+ or LuaU")
 end
-tamperCheck()
 `;
 }
 
-function generateConstantsProtection(code) {
-  return code.replace(/(["'])([^"']+)\1/g, function (_, quote, value) {
-    if (value.length > 1 && isNaN(value)) {
-      const encoded = value.split('').map(c => '\\' + c.charCodeAt(0)).join('');
-      return `"${encoded}":gsub("\\\\(%d+)",function(c)return string.char(tonumber(c))end)`;
+function generateAntiTamper(checkStr, key) {
+  const obf = xorEncrypt(checkStr, key);
+  const varName = randomVar();
+  return `
+local function ${varName}()
+  local raw = "${obf}"
+  local decoded = raw:gsub("\\\\(%d+)", function(n)
+    return string.char(tonumber(n) ~ ${key})
+  end)
+  if decoded ~= "${checkStr}" then
+    error("⚠ Tampering Detected")
+  end
+end
+${varName}()
+`;
+}
+
+function generateConstantProtection(lua) {
+  return lua.replace(/(["'])([^"']+)\1/g, (_, quote, val) => {
+    if (val.length > 1 && isNaN(val)) {
+      const enc = val.split('').map(c => '\\' + c.charCodeAt(0)).join('');
+      return `"${enc}":gsub("\\\\(%d+)", function(c) return string.char(tonumber(c)) end)`;
     }
-    return quote + value + quote;
+    return quote + val + quote;
   });
 }
 
-function wrapLuaStealth(obfStr, key, opts = {}) {
-  const funcName = randomVar();
-  const keyDisguised = `(({5*${key}}/5) ~ 0)`;
-  let antiTamperBlock = opts.antiTamper ? generateAntiTamper("MAXIMUMV5", key) : "";
+function wrapLuaCode(encrypted, key, opts) {
+  const decoderVar = randomVar();
+  let code = `
+-- Protected by LuaU Obfuscator V5 🔐
+${opts.versionCheck ? generateLuaVersionCheck() : ''}
 
-  let main = `
---[[ This File Was Obfuscated with Lua Obfuscator! ]]
-local ${funcName} = function(str)
-  return str:gsub("\\\\(%d+)", function(n)
-    return string.char(tonumber(n) ~ ${keyDisguised})
+local function ${decoderVar}(s)
+  return s:gsub("\\\\(%d+)", function(n)
+    return string.char(tonumber(n) ~ ${key})
   end)
 end
 
-${antiTamperBlock}
+${opts.antiTamper ? generateAntiTamper("MAXIMUMV5", key) : ''}
 
-local f, e = loadstring(${funcName}("${obfStr}"))
-if not f then error("Script corrupt: "..e) end
+local f, err = loadstring(${decoderVar}("${encrypted}"))
+if not f then error("Obfuscation error: "..err) end
 return f()
 `;
 
   if (opts.maxSecurity) {
-    main = `do local v="${xorEncrypt("dummy", key)}" end\n` + main.replace(/return f\(\)/, "f()");
+    const dummy = randomVar();
+    code = `do local ${dummy} = "${xorEncrypt("fake", key)}" end\n` + code;
   }
 
-  return main;
+  return code;
 }
 
-function downloadFile(filename, content) {
+function downloadFile(name, content) {
   const blob = new Blob([content], { type: 'text/plain' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.download = filename;
+  link.download = name;
   link.click();
 }
 
@@ -76,32 +84,36 @@ document.getElementById('obfuscateBtn').addEventListener('click', () => {
   const webhook = document.getElementById('webhookUrl').value.trim();
   const key = 69;
 
-  const opt_constProtect = document.getElementById('constProtect').checked;
-  const opt_maxSecurity = document.getElementById('maxSecurity').checked;
-  const opt_antiTamper = document.getElementById('antiTamper').checked;
+  const useConstProtect = document.getElementById('constProtect').checked;
+  const useMaxSecurity = document.getElementById('maxSecurity').checked;
+  const useAntiTamper = document.getElementById('antiTamper').checked;
 
-  if (!input) return alert("Please paste Lua code.");
+  if (!input) {
+    alert("⚠ Paste some Lua code first.");
+    return;
+  }
 
   let processed = input;
 
-  if (opt_constProtect) {
-    processed = generateConstantsProtection(processed);
+  if (useConstProtect) {
+    processed = generateConstantProtection(processed);
   }
 
   const encrypted = xorEncrypt(processed, key);
-  const finalCode = wrapLuaStealth(encrypted, key, {
-    antiTamper: opt_antiTamper,
-    maxSecurity: opt_maxSecurity
+  const finalCode = wrapLuaCode(encrypted, key, {
+    antiTamper: useAntiTamper,
+    maxSecurity: useMaxSecurity,
+    versionCheck: true,
   });
 
   document.getElementById('output').value = finalCode;
-  downloadFile('obfuscated.lua', finalCode);
+  downloadFile("obfuscated.lua", finalCode);
 
   if (webhook.startsWith("http")) {
     fetch(webhook, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ obfuscated: finalCode })
-    }).catch(err => console.warn("Webhook Error:", err.message));
+    }).catch(err => console.warn("Webhook error:", err));
   }
 });
