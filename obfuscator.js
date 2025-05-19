@@ -53,7 +53,7 @@ function generateConstantProtection(lua) {
 function wrapLuaCode(encrypted, key, opts) {
   const decoderVar = randomVar();
   let code = `
--- Protected by LuaU Obfuscator V5 🔐
+-- This File Was Protected by Lua Obfuscator V5 🔐
 ${opts.versionCheck ? generateLuaVersionCheck() : ''}
 ${generateBitLibSupport()}
 
