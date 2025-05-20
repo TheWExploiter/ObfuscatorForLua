@@ -126,20 +126,7 @@ end
       const code = input.value.trim();
       if (!code) return alert("Paste some Lua code!");
 
-      const maxLineLength = 1000; // max characters allowed per line
-      const maxSecurity = maxSecurityCheckbox.checked;
-      const lines = code.split('\n');
-      const hasLongLine = lines.some(line => line.length > maxLineLength);
-
-      if (hasLongLine && !maxSecurity) {
-        const file = new Blob([code], { type: "text/plain" });
-        const url = URL.createObjectURL(file);
-        downloads.innerHTML = `<a href="${url}" download="original_script.lua">One or more lines too long - Download original Lua file</a>`;
-        output.value = "// One or more lines are too long to obfuscate inline.\n// Please use the downloaded file.";
-        return;
-      }
-
-      // Proceed with obfuscation
+      // No line length limit anymore — always allow obfuscation
       const obfuscated = obfuscateLua(code);
       output.value = obfuscated;
 
