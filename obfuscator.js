@@ -20,6 +20,26 @@ document.addEventListener("DOMContentLoaded", () => {
       return arr.join("");
     }
 
+    function getRandomCharset() {
+      return shuffleString("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/=");
+    }
+
+    function b64EncodeUnicode(str, charset) {
+      const btoaEncoded = btoa(
+        encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) =>
+          String.fromCharCode("0x" + p1)
+        )
+      );
+      return btoaEncoded
+        .split("")
+        .map((c) =>
+          charset.includes(c)
+            ? charset.indexOf(c).toString(16).padStart(2, "0")
+            : c
+        )
+        .join("");
+    }
+
     function randomVar(length = 12) {
       const chars = shuffleString("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ");
       let result = "";
@@ -45,16 +65,10 @@ document.addEventListener("DOMContentLoaded", () => {
       return `local function ${fname}()\n  local ${v} = 0\n  for i=1,10 do ${v} = ${v} + i end\n  return ${v}\nend;`;
     }
 
-    function btoaUnicode(str) {
-      return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) =>
-        String.fromCharCode("0x" + p1)
-      ));
-    }
-
     function createDecodeChain(encoded, levels = 4) {
       let layered = encoded;
       for (let i = 0; i < levels; i++) {
-        layered = btoaUnicode(layered);
+        layered = btoa(layered);
       }
       return layered;
     }
@@ -108,28 +122,24 @@ end
 `;
     }
 
-    obfuscateBtn.addEventListener("click", async () => {
+    obfuscateBtn.addEventListener("click", () => {
       const code = input.value.trim();
       if (!code) return alert("Paste some Lua code!");
 
-      output.value = "Checking file size...";
-      await new Promise(resolve => setTimeout(resolve, 100)); // Let UI update
-
-      const maxSize = 100000; // 100 KB size limit for inline obfuscation
+      const maxLineLength = 1000; // max characters allowed per line
       const maxSecurity = maxSecurityCheckbox.checked;
+      const lines = code.split('\n');
+      const hasLongLine = lines.some(line => line.length > maxLineLength);
 
-      if (code.length > maxSize && !maxSecurity) {
-        // Too big and max security not checked, just offer download of original code
+      if (hasLongLine && !maxSecurity) {
         const file = new Blob([code], { type: "text/plain" });
         const url = URL.createObjectURL(file);
-        downloads.innerHTML = `<a href="${url}" download="original_script.lua">File Too Large - Download Original Lua</a>`;
-        output.value = "// Script too large to obfuscate inline.\n// Please use the downloaded file.";
+        downloads.innerHTML = `<a href="${url}" download="original_script.lua">One or more lines too long - Download original Lua file</a>`;
+        output.value = "// One or more lines are too long to obfuscate inline.\n// Please use the downloaded file.";
         return;
       }
 
-      output.value = "Obfuscating... please wait.";
-      await new Promise(resolve => setTimeout(resolve, 50)); // UI smoothness
-
+      // Proceed with obfuscation
       const obfuscated = obfuscateLua(code);
       output.value = obfuscated;
 
@@ -144,7 +154,7 @@ end
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ content: "```lua\n" + obfuscated + "\n```" }),
         }).catch(() => {
-          console.warn("Webhook POST failed (ignored)");
+          // silently fail webhook errors
         });
       }
     });
