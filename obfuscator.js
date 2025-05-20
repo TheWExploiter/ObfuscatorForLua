@@ -5,7 +5,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const webhookUrl = document.getElementById("webhookUrl");
   const downloads = document.getElementById("downloads");
 
-  const watermark = "--[[ Obfuscated by Nugget & Maximum V5🔥🗿 ]]";
+  const watermark = "--[[ This File Was Obfuscated Using Lua Obfuscator ]]--";
 
   function b64EncodeUnicode(str) {
     return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) =>
