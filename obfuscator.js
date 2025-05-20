@@ -1,3 +1,5 @@
+// Lua Obfuscator V3 (UPDATED)
+
 document.addEventListener("DOMContentLoaded", () => {
   try {
     console.log("🟢 Lua Obfuscator script fully loaded!");
