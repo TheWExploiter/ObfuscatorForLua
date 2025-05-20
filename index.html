@@ -1,25 +1,41 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Lua Obfuscator</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="container">
     <h1>Lua Obfuscator</h1>
+
     <textarea id="inputCode" placeholder="Paste your Lua code here..."></textarea>
     <input id="webhookUrl" type="text" placeholder="Enter webhook URL (optional)" />
     <button id="obfuscateBtn">Obfuscate</button>
+
     <div class="options">
-    <label><input type="checkbox" id="maxSecurity"> Maximum Security</label><br>
-  </div>
+      <label><input type="checkbox" id="maxSecurity"> Maximum Security</label><br>
+    </div>
+
     <h2>Obfuscated Output</h2>
     <textarea id="output" readonly></textarea>
+    <button id="copyBtn">Copy to Clipboard</button>
+
     <h2>Download Obfuscated File</h2>
     <div id="downloads"></div>
   </div>
+
+  <script>
+    document.getElementById("copyBtn").addEventListener("click", () => {
+      const output = document.getElementById("output");
+      output.select();
+      output.setSelectionRange(0, 99999); // For mobile
+      document.execCommand("copy");
+      alert("Copied to clipboard!");
+    });
+  </script>
+
   <script src="obfuscator.js" defer></script>
 </body>
 </html>
