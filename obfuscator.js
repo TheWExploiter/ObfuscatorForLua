@@ -5,6 +5,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const webhookUrl = document.getElementById("webhookUrl");
   const downloads = document.getElementById("downloads");
 
+  const watermark = "--[[ Obfuscated by Nugget & Maximum V5🔥🗿 ]]";
+
   function b64EncodeUnicode(str) {
     return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) =>
       String.fromCharCode('0x' + p1)
@@ -20,19 +22,37 @@ document.addEventListener("DOMContentLoaded", () => {
     return result;
   }
 
+  function generateJunk(count = 3) {
+    const junk = [];
+    for (let i = 0; i < count; i++) {
+      const varName = randomVar();
+      const val = Math.floor(Math.random() * 9999);
+      junk.push(`local ${varName} = ${val}`);
+    }
+    return junk.join("\n");
+  }
+
+  function generateFakeFunc() {
+    const fname = randomVar();
+    const v = randomVar();
+    return `local function ${fname}()\n  local ${v} = 0\n  for i=1,10 do ${v} = ${v} + i end\n  return ${v}\nend`;
+  }
+
   function obfuscateLua(code) {
-    if (!code.trim()) return null;
-
-    const watermark = "--[[ This File Has Been Protected Using Lua Obfuscator (By Nugget & V5) ]]\n";
     const encoded = b64EncodeUnicode(code);
-    const loaderVar = randomVar();
+    const lvar = randomVar();
     const decodeFunc = randomVar();
-    const chunkFunc = randomVar();
-    const dummyVar = randomVar();
-    const dummyFunc = randomVar();
+    const executeFunc = randomVar();
+    const junkCode = generateJunk();
+    const fakeFunc = generateFakeFunc();
 
-    const result = `${watermark}
-local ${loaderVar} = '${encoded}'
+    return `${watermark}
+
+${junkCode}
+
+${fakeFunc}
+
+local ${lvar} = '${encoded}'
 
 local function ${decodeFunc}(s)
   local b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
@@ -50,28 +70,26 @@ local function ${decodeFunc}(s)
   end))
 end
 
-local function ${dummyFunc}()
-  local ${dummyVar} = 0
-  for i = 1, 10 do
-    ${dummyVar} = ${dummyVar} + i
+local function ${executeFunc}()
+  local chunk = loadstring(${decodeFunc}(${lvar}))
+  if chunk then
+    chunk()
+  else
+    error("Execution failed. Are you trying to reverse this?")
   end
-  return ${dummyVar}
 end
 
-local ${chunkFunc} = loadstring(${decodeFunc}(${loaderVar}))
-${chunkFunc}()
+if math.random() > -1 then -- fake condition
+  ${executeFunc}()
+end
 `;
-
-    return result;
   }
 
   obfuscateBtn.addEventListener("click", () => {
     const code = input.value.trim();
-    if (!code) return alert("No Lua code provided");
+    if (!code) return alert("Paste some Lua code!");
 
     const obfuscated = obfuscateLua(code);
-    if (!obfuscated) return alert("Failed to obfuscate!");
-
     output.value = obfuscated;
 
     const file = new Blob([obfuscated], { type: 'text/plain' });
