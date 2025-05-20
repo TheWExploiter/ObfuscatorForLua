@@ -19,7 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function obfuscateLua(code) {
-    const watermark = "--[[ This File Has Been Protected Using Lua Obfuscator ]]\n";
+    const watermark = "--[[ This File Has Been Protected Using Lua Obfuscator ]]\n\n";
     const encoded = b64EncodeUnicode(code);
     const loaderVar = randomVar();
     const decodeFunc = randomVar();
@@ -27,9 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const dummyVar = randomVar();
     const dummyFunc = randomVar();
 
-    return `${watermark}
-
-local ${loaderVar} = '${encoded}'
+    const obfuscated = `${watermark}local ${loaderVar} = '${encoded}'
 
 local function ${decodeFunc}(s)
   local b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
@@ -57,6 +55,8 @@ end
 
 local ${chunkFunc} = loadstring(${decodeFunc}(${loaderVar}))
 ${chunkFunc}()`;
+
+    return obfuscated;
   }
 
   obfuscateBtn.addEventListener("click", () => {
