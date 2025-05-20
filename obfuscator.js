@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => { const input = document.getElementById("inputCode"); const output = document.getElementById("output"); const obfuscateBtn = document.getElementById("obfuscateBtn"); const webhookUrl = document.getElementById("webhookUrl"); const downloads = document.getElementById("downloads");
 
-const watermark = "--[[ This File Has Been Obfuscated By Lua Obfuscator V3 ]]--";
+const watermark = "--[[) This File Has Been Obfuscated By Lua Obfuscator V3 (]]--";
 
 function shuffleString(str) { const arr = str.split(""); for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr.join(""); }
 
