@@ -20,22 +20,9 @@
 
     <h2>Obfuscated Output</h2>
     <textarea id="output" readonly></textarea>
-    <button id="copyBtn">Copy to Clipboard</button>
-
     <h2>Download Obfuscated File</h2>
     <div id="downloads"></div>
   </div>
-
-  <script>
-    document.getElementById("copyBtn").addEventListener("click", () => {
-      const output = document.getElementById("output");
-      output.select();
-      output.setSelectionRange(0, 99999); // For mobile
-      document.execCommand("copy");
-      alert("Copied to clipboard!");
-    });
-  </script>
-
   <script src="obfuscator.js" defer></script>
 </body>
 </html>
