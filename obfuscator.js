@@ -1,135 +1,81 @@
-const XOR_KEY = 69;
+document.addEventListener("DOMContentLoaded", () => {
+  const input = document.getElementById("inputCode");
+  const output = document.getElementById("output");
+  const obfuscateBtn = document.getElementById("obfuscateBtn");
+  const webhookUrl = document.getElementById("webhookUrl");
+  const downloads = document.getElementById("downloads");
 
-function xorEncrypt(str, key) {
-  return str
-    .split('')
-    .map(c => '\\' + (c.charCodeAt(0) ^ key))
-    .join('');
-}
+  function b64EncodeUnicode(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+  }
 
-function wrapLua(obfStr, options = {}) {
-  const { constProtect = false, maxSecurity = false, antiTamper = false } = options;
+  function randomVar(length = 12) {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let result = "";
+    for (let i = 0; i < length; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
 
-  const versionCheckCode = maxSecurity ? `
-if not (_VERSION:match("5%.3") or string.pack) then
-  return
+  function obfuscateLua(code) {
+    const watermark = "--[[ This File Has Been Protected Using Lua Obfuscator ]]\n";
+    const encoded = b64EncodeUnicode(code);
+    const loaderVar = randomVar();
+    const decodeFunc = randomVar();
+    const chunkFunc = randomVar();
+    const dummyVar = randomVar();
+    const dummyFunc = randomVar();
+
+    return `${watermark}
+
+local ${loaderVar} = '${encoded}'
+
+local function ${decodeFunc}(s)
+  local b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+  s = string.gsub(s, '[^'..b..'=]', '')
+  return (s:gsub('.', function(x)
+    if (x == '=') then return '' end
+    local r,f='',(b:find(x)-1)
+    for i=6,1,-1 do r=r..(f%2^i - f%2^(i-1) > 0 and '1' or '0') end
+    return r
+  end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
+    if (#x ~= 8) then return '' end
+    local c=0
+    for i=1,8 do c=c + (x:sub(i,i)=='1' and 2^(8-i) or 0) end
+    return string.char(c)
+  end))
 end
-` : '';
 
-  const antiTamperCode = antiTamper ? `
-local function silentAntiTamper()
-  local raw = "\\8\\4\\29\\12\\8\\16\\8\\19\\112"
-  local decoded = raw:gsub("\\\\(%d+)", function(n)
-    return string.char(bit.bxor(tonumber(n), ${XOR_KEY}))
-  end)
-  if decoded ~= "MAXIMUMV5" then
-    return
+local function ${dummyFunc}()
+  local ${dummyVar} = 0
+  for i = 1, 10 do
+    ${dummyVar} = ${dummyVar} + i
   end
-  return true
+  return ${dummyVar}
 end
 
-if not silentAntiTamper() then
-  return
-end
-` : '';
-
-  const constProtectCode = constProtect ? `
-local function constantProtection()
-  local dummy = {}
-  setmetatable(dummy, {
-    __index = function() error("Constant modification detected") end,
-    __newindex = function() error("Constant modification detected") end
-  })
-  _G.CONST = dummy
-end
-constantProtection()
-` : '';
-
-  return `do local _ = "\\35\\36\\46\\32" end
-
-${versionCheckCode}
-
-local bit = bit32 or require("bit")
-
-local function decode(str)
-  return str:gsub("\\\\(%d+)", function(n)
-    return string.char(bit.bxor(tonumber(n), ${XOR_KEY}))
-  end)
-end
-
-${antiTamperCode}
-
-${constProtectCode}
-
-local f, err = loadstring(decode("${obfStr}"))
-if not f then
-  return
-end
-
-return f()
-`;
-}
-
-function downloadFile(filename, content) {
-  const blob = new Blob([content], { type: 'text/plain' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-async function sendWebhook(webhookUrl, data) {
-  if (!webhookUrl.startsWith('http')) return;
-  try {
-    const res = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ obfuscated: data }),
-    });
-    if (!res.ok) throw new Error('Webhook send failed');
-    console.log('Webhook sent successfully');
-  } catch (e) {
-    console.warn('Webhook error:', e.message);
-  }
-}
-
-document.getElementById('obfuscateBtn').addEventListener('click', async () => {
-  const inputCodeRaw = document.getElementById('inputCode').value;
-  if (!inputCodeRaw.trim()) {
-    alert("Paste some Lua code first.");
-    return;
+local ${chunkFunc} = loadstring(${decodeFunc}(${loaderVar}))
+${chunkFunc}()`;
   }
 
-  const webhookUrl = document.getElementById('webhookUrl').value.trim();
-  const constProtect = document.getElementById('constProtect').checked;
-  const maxSecurity = document.getElementById('maxSecurity').checked;
-  const antiTamper = document.getElementById('antiTamper').checked;
+  obfuscateBtn.addEventListener("click", () => {
+    const code = input.value;
+    if (!code.trim()) return alert("No Lua code provided");
+    const obfuscated = obfuscateLua(code);
+    output.value = obfuscated;
 
-  // Split the input into lines
-  const lines = inputCodeRaw.split('\n');
+    const file = new Blob([obfuscated], { type: 'text/plain' });
+    const url = URL.createObjectURL(file);
+    downloads.innerHTML = `<a href="${url}" download="obfuscated.lua">Download Obfuscated File</a>`;
 
-  // Detect if first line is the special comment to keep intact
-  let headerLine = '';
-  let codeToObfuscate = inputCodeRaw;
-  if (lines.length > 0 && lines[0].trim().startsWith('-- This File Was')) {
-    headerLine = lines[0];
-    codeToObfuscate = lines.slice(1).join('\n');
-  }
-
-  const encrypted = xorEncrypt(codeToObfuscate, XOR_KEY);
-  const finalCodeBody = wrapLua(encrypted, { constProtect, maxSecurity, antiTamper });
-
-  // Put header line back on top if it existed
-  const finalCode = headerLine
-    ? headerLine + '\n' + finalCodeBody
-    : finalCodeBody;
-
-  document.getElementById('output').value = finalCode;
-
-  downloadFile('obfuscated.lua', finalCode);
-
-  if (webhookUrl) {
-    await sendWebhook(webhookUrl, finalCode);
-  }
+    const wh = webhookUrl.value.trim();
+    if (wh) {
+      fetch(wh, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: "```lua\n" + obfuscated + "\n```" })
+      });
+    }
+  });
 });
