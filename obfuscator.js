@@ -5,12 +5,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const webhookUrl = document.getElementById("webhookUrl");
   const downloads = document.getElementById("downloads");
 
-  const watermark = "--[[ This File Was Obfuscated Using Lua Obfuscator ]]--";
+  const watermark = "--[[ Obfuscated by Nugget & Maximum V5🔥🗿 ]]";
 
   function b64EncodeUnicode(str) {
-    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) =>
-      String.fromCharCode('0x' + p1)
-    ));
+    return btoa(unescape(encodeURIComponent(str)));
   }
 
   function randomVar(length = 12) {
@@ -22,65 +20,63 @@ document.addEventListener("DOMContentLoaded", () => {
     return result;
   }
 
-  function generateJunk(count = 3) {
+  function generateJunk(count = 7) {
     const junk = [];
     for (let i = 0; i < count; i++) {
-      const varName = randomVar();
-      const val = Math.floor(Math.random() * 9999);
-      junk.push(`local ${varName} = ${val}`);
+      const a = randomVar();
+      const b = Math.floor(Math.random() * 99999);
+      junk.push(`local ${a} = ${b}`);
     }
     return junk.join("\n");
   }
 
   function generateFakeFunc() {
-    const fname = randomVar();
-    const v = randomVar();
-    return `local function ${fname}()\n  local ${v} = 0\n  for i=1,10 do ${v} = ${v} + i end\n  return ${v}\nend`;
+    const fn = randomVar();
+    const vn = randomVar();
+    return `local function ${fn}()\n  local ${vn} = 1\n  for i=1,9 do ${vn} = ${vn} * i end\n  return ${vn}\nend`;
   }
 
   function obfuscateLua(code) {
-    const encoded = b64EncodeUnicode(code);
-    const lvar = randomVar();
+    const firstEncode = b64EncodeUnicode(code);
+    const doubleEncode = b64EncodeUnicode(firstEncode);
+    const strVar = randomVar();
     const decodeFunc = randomVar();
-    const executeFunc = randomVar();
-    const junkCode = generateJunk();
-    const fakeFunc = generateFakeFunc();
+    const runFunc = randomVar();
+    const junk = generateJunk();
+    const fake = generateFakeFunc();
 
     return `${watermark}
 
-${junkCode}
+${junk}
 
-${fakeFunc}
+${fake}
 
-local ${lvar} = '${encoded}'
+local ${strVar} = '${doubleEncode}'
 
 local function ${decodeFunc}(s)
-  local b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-  s = string.gsub(s, '[^'..b..'=]', '')
-  return (s:gsub('.', function(x)
-    if (x == '=') then return '' end
-    local r,f='',(b:find(x)-1)
+  local d='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+  s = string.gsub(s, '[^'..d..'=]', '')
+  return (s:gsub('.', function(c)
+    if (c == '=') then return '' end
+    local f = (d:find(c)-1)
+    local r = ''
     for i=6,1,-1 do r=r..(f%2^i - f%2^(i-1) > 0 and '1' or '0') end
     return r
-  end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
-    if (#x ~= 8) then return '' end
+  end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(b)
+    if #b ~= 8 then return '' end
     local c=0
-    for i=1,8 do c = c + (x:sub(i,i)=='1' and 2^(8-i) or 0) end
+    for i=1,8 do c = c + (b:sub(i,i)=='1' and 2^(8-i) or 0) end
     return string.char(c)
   end))
 end
 
-local function ${executeFunc}()
-  local chunk = loadstring(${decodeFunc}(${lvar}))
-  if chunk then
-    chunk()
-  else
-    error("Execution failed. Are you trying to reverse this?")
-  end
+local function ${runFunc}()
+  local l = loadstring(${decodeFunc}(${decodeFunc}(${strVar})))
+  if l then l() else while true do end end
 end
 
-if math.random() > -1 then -- fake condition
-  ${executeFunc}()
+if tostring(os.time()):len() > 1 then
+  ${runFunc}()
 end
 `;
   }
