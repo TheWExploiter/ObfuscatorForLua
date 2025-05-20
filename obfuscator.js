@@ -6,7 +6,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const downloads = document.getElementById("downloads");
 
   function b64EncodeUnicode(str) {
-    return btoa(unescape(encodeURIComponent(str)));
+    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) =>
+      String.fromCharCode('0x' + p1)
+    ));
   }
 
   function randomVar(length = 12) {
@@ -19,7 +21,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function obfuscateLua(code) {
-    const watermark = "--[[ This File Has Been Protected Using Lua Obfuscator ]]\n\n";
+    if (!code.trim()) return null;
+
+    const watermark = "--[[ This File Has Been Protected Using Lua Obfuscator (By Nugget & V5) ]]\n";
     const encoded = b64EncodeUnicode(code);
     const loaderVar = randomVar();
     const decodeFunc = randomVar();
@@ -27,7 +31,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const dummyVar = randomVar();
     const dummyFunc = randomVar();
 
-    const obfuscated = `${watermark}local ${loaderVar} = '${encoded}'
+    const result = `${watermark}
+local ${loaderVar} = '${encoded}'
 
 local function ${decodeFunc}(s)
   local b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
@@ -40,7 +45,7 @@ local function ${decodeFunc}(s)
   end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
     if (#x ~= 8) then return '' end
     local c=0
-    for i=1,8 do c=c + (x:sub(i,i)=='1' and 2^(8-i) or 0) end
+    for i=1,8 do c = c + (x:sub(i,i)=='1' and 2^(8-i) or 0) end
     return string.char(c)
   end))
 end
@@ -54,15 +59,19 @@ local function ${dummyFunc}()
 end
 
 local ${chunkFunc} = loadstring(${decodeFunc}(${loaderVar}))
-${chunkFunc}()`;
+${chunkFunc}()
+`;
 
-    return obfuscated;
+    return result;
   }
 
   obfuscateBtn.addEventListener("click", () => {
-    const code = input.value;
-    if (!code.trim()) return alert("No Lua code provided");
+    const code = input.value.trim();
+    if (!code) return alert("No Lua code provided");
+
     const obfuscated = obfuscateLua(code);
+    if (!obfuscated) return alert("Failed to obfuscate!");
+
     output.value = obfuscated;
 
     const file = new Blob([obfuscated], { type: 'text/plain' });
