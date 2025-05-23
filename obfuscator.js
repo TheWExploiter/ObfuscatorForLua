@@ -1,152 +1,78 @@
-document.addEventListener("DOMContentLoaded", () => {
-  try {
-    console.log("🟢 Lua Obfuscator script fully loaded!");
+document.getElementById("obfuscateBtn").addEventListener("click", () => {
+  const inputCode = document.getElementById("inputCode").value;
+  const maxSecurity = document.getElementById("maxSecurity").checked;
+  const webhookUrl = document.getElementById("webhookUrl").value;
+  const outputBox = document.getElementById("output");
+  const downloads = document.getElementById("downloads");
 
-    const input = document.getElementById("inputCode");
-    const output = document.getElementById("output");
-    const obfuscateBtn = document.getElementById("obfuscateBtn");
-    const webhookUrl = document.getElementById("webhookUrl");
-    const downloads = document.getElementById("downloads");
-    const maxSecurityCheckbox = document.getElementById("maxSecurity");
+  if (!inputCode.trim()) return alert("Paste some Lua code first!");
 
-    const watermark = "--[[) This File Has Been Obfuscated By Lua Obfuscator V3 (]]--";
+  let obfuscated = obfuscateLua(inputCode, maxSecurity);
+  outputBox.value = obfuscated;
 
-    function shuffleString(str) {
-      const arr = str.split("");
-      for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
-      }
-      return arr.join("");
-    }
+  // Send to webhook
+  if (webhookUrl.trim().startsWith("http")) {
+    fetch(webhookUrl.trim(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: obfuscated })
+    }).catch(() => alert("Webhook failed."));
+  }
 
-    function getRandomCharset() {
-      return shuffleString("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/=");
-    }
-
-    function b64EncodeUnicode(str, charset) {
-      const btoaEncoded = btoa(
-        encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) =>
-          String.fromCharCode("0x" + p1)
-        )
-      );
-      return btoaEncoded
-        .split("")
-        .map((c) =>
-          charset.includes(c)
-            ? charset.indexOf(c).toString(16).padStart(2, "0")
-            : c
-        )
-        .join("");
-    }
-
-    function randomVar(length = 12) {
-      const chars = shuffleString("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ");
-      let result = "";
-      for (let i = 0; i < length; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      return result;
-    }
-
-    function generateJunk(count = 5) {
-      const junk = [];
-      for (let i = 0; i < count; i++) {
-        const varName = randomVar();
-        const val = Math.floor(Math.random() * 999999);
-        junk.push(`local ${varName} = ${val}`);
-      }
-      return junk.join("\n");
-    }
-
-    function generateFakeFunc() {
-      const fname = randomVar();
-      const v = randomVar();
-      return `local function ${fname}()\n  local ${v} = 0\n  for i=1,10 do ${v} = ${v} + i end\n  return ${v}\nend;`;
-    }
-
-    function createDecodeChain(encoded, levels = 4) {
-      let layered = encoded;
-      for (let i = 0; i < levels; i++) {
-        layered = btoa(layered);
-      }
-      return layered;
-    }
-
-    function obfuscateLua(code) {
-      const encoded = createDecodeChain(code, 4);
-      const lvar = randomVar();
-      const decodeFunc = randomVar();
-      const executeFunc = randomVar();
-      const junkCode = generateJunk();
-      const fakeFunc = generateFakeFunc();
-
-      return `${watermark} 
-
-${junkCode}
-
-${fakeFunc}
-
-local ${lvar} = '${encoded}'
-
-local function ${decodeFunc}(s) 
-  for i = 1, 4 do 
-    s = s:gsub('[^A-Za-z0-9+/=]', '') 
-    s = (s:gsub('.', function(x) 
-      if (x == '=') then return '' end 
-      local r,f='',(('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'):find(x)-1) 
-      for i=6,1,-1 do 
-        r=r..(f%2^i - f%2^(i-1) > 0 and '1' or '0') 
-      end 
-      return r 
-    end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x) 
-      if (#x ~= 8) then return '' end 
-      local c=0 
-      for i=1,8 do 
-        c = c + (x:sub(i,i)=='1' and 2^(8-i) or 0) 
-      end 
-      return string.char(c) 
-    end)) 
-  end 
-  return s 
-end
-
-local function ${executeFunc}() 
-  local chunk = loadstring(${decodeFunc}(${lvar})) 
-  if chunk then chunk() end 
-end
-
-if os.clock() > 0 then 
-  ${executeFunc}() 
-end
-`;
-    }
-
-    obfuscateBtn.addEventListener("click", () => {
-      const code = input.value.trim();
-      if (!code) return alert("Paste some Lua code!");
-
-      // No line length limit anymore — always allow obfuscation
-      const obfuscated = obfuscateLua(code);
-      output.value = obfuscated;
-
-      const file = new Blob([obfuscated], { type: "text/plain" });
-      const url = URL.createObjectURL(file);
-      downloads.innerHTML = `<a href="${url}" download="obfuscated.lua">Download Obfuscated File</a>`;
-
-      const wh = webhookUrl.value.trim();
-      if (wh) {
-        fetch(wh, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: "```lua\n" + obfuscated + "\n```" }),
-        }).catch(() => {
-          // silently fail webhook errors
-        });
-      }
-    });
-  } catch (err) {
-    console.error("🔴 Error loading Lua Obfuscator script:", err);
-    alert("An error occurred while loading the script. Check console for details.");
+  // Auto download if large
+  if (obfuscated.length > 4000) {
+    const blob = new Blob([obfuscated], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    downloads.innerHTML = `<a href="${url}" download="obfuscated_${Date.now()}.lua">Download Obfuscated File</a>`;
+  } else {
+    downloads.innerHTML = "";
   }
 });
+
+function obfuscateLua(code, maxSecurity) {
+  let varMap = {}, varIndex = 0;
+  const fakeJunkNames = ["_init", "_safe", "_core", "_loop", "_request", "_fire", "_hash", "_crypto", "_link"];
+  const getRand = () => Math.random().toString(36).substring(2, 7);
+
+  // Local var renaming
+  code = code.replace(/local\s+([a-zA-Z_][a-zA-Z0-9_]*)/g, (match, varName) => {
+    const newName = "_v" + (++varIndex) + getRand();
+    varMap[varName] = newName;
+    return `local ${newName}`;
+  });
+  for (const [k, v] of Object.entries(varMap)) {
+    const regex = new RegExp(`\\b${k}\\b`, "g");
+    code = code.replace(regex, v);
+  }
+
+  // String encoding
+  code = code.replace(/"([^"]*)"/g, (_, str) => {
+    const encoded = str.split("").map(c => "\\" + c.charCodeAt(0)).join("");
+    return `"${encoded}"`;
+  });
+
+  // Add hidden junk
+  let junkBlock = "";
+  for (let i = 0; i < 5; i++) {
+    const name = fakeJunkNames[Math.floor(Math.random() * fakeJunkNames.length)] + getRand();
+    const val = Math.floor(Math.random() * 99999);
+    junkBlock += `local ${name}="${val + Math.random().toFixed(5)}".."";`;
+  }
+
+  // Trap vars (never used but confuse analysis)
+  junkBlock += `if not pcall(function() error("Fail "..math.random()) end) then end;`;
+
+  // Fake API
+  if (maxSecurity) {
+    junkBlock += `pcall(function() game:GetService("${getRand().toUpperCase()}") end);`;
+  }
+
+  // Strip whitespace
+  code = code.replace(/\s{2,}/g, " ").replace(/\n+/g, "");
+
+  // Final wrap
+  const wrapped = `--[[ This File Has Been Protected Using Lua Obfuscator ]]\n` +
+    (maxSecurity ? `(function()${junkBlock}${code}end)()` : junkBlock + code);
+
+  return wrapped;
+}
