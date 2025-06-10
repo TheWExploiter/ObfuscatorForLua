@@ -1,44 +1,67 @@
-// Generate a shuffled base64 charset
-function shuffleBase64Chars() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'.split('');
-  for (let i = chars.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [chars[i], chars[j]] = [chars[j], chars[i]];
-  }
-  return chars.join('');
+// Utils
+function encodeBase64(str) {
+  return btoa(str);
 }
 
-// Encode string using *shuffled* base64 charset
-function encodeBase64WithCharset(str, charset) {
-  const standardB64 = btoa(str);
-  // Map standard base64 chars to shuffled charset
-  const stdChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  let result = '';
-  for (const c of standardB64) {
-    if (c === '=') {
-      result += '=';
-    } else {
-      const idx = stdChars.indexOf(c);
-      result += charset[idx];
+function generateRandomName(prefix = '_x') {
+  return `${prefix}${Math.random().toString(36).substring(2, 8)}`;
+}
+
+function insertMiddle(original, insert) {
+  const lines = original.split('\n');
+  const mid = Math.floor(lines.length / 2);
+  lines.splice(mid, 0, insert);
+  return lines.join('\n');
+}
+
+// Rename functions
+function renameFunctions(code) {
+  const fnPattern = /function\s+(\w+)/g;
+  const fnMap = {};
+  let id = 0;
+
+  return code.replace(fnPattern, (_, fnName) => {
+    if (!fnMap[fnName]) {
+      fnMap[fnName] = generateRandomName('_fn');
     }
-  }
-  return result;
+    return `function ${fnMap[fnName]}`;
+  });
 }
 
-function insertStealthDecoder() {
+// Rename locals
+function renameLocals(code) {
+  const varPattern = /(?<=local\s+)(\w+)/g;
+  const varMap = {};
+  let id = 0;
+
+  return code.replace(varPattern, (match) => {
+    if (!varMap[match]) {
+      varMap[match] = generateRandomName('_v');
+    }
+    return varMap[match];
+  });
+}
+
+// String obfuscation using Base64 with runtime decode
+function obfuscateStrings(code) {
+  return code.replace(/"(.*?)"/g, (_, str) => {
+    const encoded = encodeBase64(str);
+    return `${generateRandomName('_decode')}("${encoded}")`; // will be defined in inserted decoder
+  });
+}
+
+// Insert stealthy decoder in the middle
+function insertStealthDecoder(code) {
   const decoderFuncName = generateRandomName('_decode');
-  const hiddenPrintFuncName = generateRandomName('_hiddenPrint');
-  const b64Var = generateRandomName('_b64chars');
-
-  const shuffledCharset = shuffleBase64Chars();
-
-  const decoderCode = `--[[This File Has Been Obfuscated By Z-Obfuscator]]--
-local ${b64Var}='${shuffledCharset}'
+  const base64Var = generateRandomName('_b64chars');
+  const decoderCode = `
+-- stealth decoder injection
+local ${base64Var}='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 function ${decoderFuncName}(data)
-  data = string.gsub(data, '[^'..${b64Var}..'=]', '')
+  data = string.gsub(data, '[^'..${base64Var}..'=]', '')
   return (data:gsub('.', function(x)
     if x == '=' then return '' end
-    local r,f='',(${b64Var}:find(x)-1)
+    local r,f='',(${base64Var}:find(x)-1)
     for i=6,1,-1 do r=r..(f%2^i - f%2^(i-1) > 0 and '1' or '0') end
     return r
   end):gsub('%d%d%d%d%d%d%d%d', function(x)
@@ -49,92 +72,83 @@ function ${decoderFuncName}(data)
     return string.char(c)
   end))
 end
-
-function ${hiddenPrintFuncName}(str)
-  print(str)
-end
 `;
 
-  return { decoderCode, decoderFuncName, hiddenPrintFuncName, shuffledCharset };
+  return {
+    updatedCode: insertMiddle(code, decoderCode),
+    decoderFuncName
+  };
 }
 
-// Now, modify obfuscateStrings and hidePrintStatements to use this shuffled charset encoder
-
-function obfuscateStrings(code, decoderName, shuffledCharset) {
-  return code.replace(/"(.*?)"/g, (_, str) => {
-    const encoded = encodeBase64WithCharset(str, shuffledCharset);
-    return `${decoderName}("${encoded}")`;
-  });
+// Junk generator
+function generateJunkCode(lines = 3) {
+  let junk = '';
+  for (let i = 0; i < lines; i++) {
+    const a = generateRandomName('_j');
+    const b = Math.floor(Math.random() * 100);
+    junk += `local ${a} = ${b} * ${b}\n`;
+  }
+  return junk;
 }
 
-function hidePrintStatements(code, hiddenPrintName, decoderName, shuffledCharset) {
-  return code.replace(/print\s*([^)]*)/g, (_, arg) => {
-    const encoded = encodeBase64WithCharset(arg.trim(), shuffledCharset);
-    return `${hiddenPrintName}(${decoderName}("${encoded}"))`;
-  });
-}
-
-// In your main event listener, call these with shuffledCharset:
-
+// OB main function
 document.getElementById("obfuscateBtn").addEventListener("click", () => {
-  let code = document.getElementById("inputCode").value;
+  const inputCode = document.getElementById("inputCode").value;
   const webhookUrl = document.getElementById("webhookUrl").value;
   const maxSecurity = document.getElementById("maxSecurity").checked;
 
-  // Insert watermark on top
-  const watermark = `--[[This File Has Been Obfuscated By Z-Obfuscator]]--\n`;
-
-  // Step 1: Insert decoder and hidden print with shuffled charset
-  const { decoderCode, decoderFuncName, hiddenPrintFuncName, shuffledCharset } = insertStealthDecoder();
-
-  // Step 2: Rename functions and locals
-  code = renameFunctions(code);
-  code = renameLocals(code);
-
-  // Step 3: Hide print calls with hiddenPrint func and encode args with shuffled charset
-  code = hidePrintStatements(code, hiddenPrintFuncName, decoderFuncName, shuffledCharset);
-
-  // Step 4: Obfuscate all strings by replacing them with runtime decoder calls (shuffled charset)
-  code = obfuscateStrings(code, decoderFuncName, shuffledCharset);
-
-  // Step 5: Add junk code before and after
-  const junkBefore = generateJunkCode(5);
-  const junkAfter = generateJunkCode(5);
-
-  // Step 6: Inject decoder in the middle of code
-  code = insertMiddle(code, decoderCode);
-
-  // Step 7: Assemble everything with watermark + junk + code
-  let finalCode = watermark + junkBefore + '\n' + code + '\n' + junkAfter;
-
-  // Step 8: Wrap lines in 'do ... end' if max security
-  if (maxSecurity) {
-    finalCode = finalCode.split('\n').map(line => line.trim() ? `do ${line.trim()} end` : '').join('\n');
+  if (!inputCode.trim()) {
+    alert("Please enter Lua code to obfuscate!");
+    return; // Prevent obfuscation if no code is entered
   }
 
-  // Output final obfuscated code
+  let obfuscated = inputCode;
+
+  obfuscated = renameFunctions(obfuscated);
+  obfuscated = renameLocals(obfuscated);
+  obfuscated = obfuscateStrings(obfuscated);
+
+  const junkBefore = generateJunkCode(4);
+  const junkAfter = generateJunkCode(4);
+
+  const { updatedCode, decoderFuncName } = insertStealthDecoder(obfuscated);
+
+  let finalCode = junkBefore + '\n' + updatedCode + '\n' + junkAfter;
+
+  if (maxSecurity) {
+    finalCode = finalCode.split('\n').map(line => {
+      if (line.trim()) return `do ${line.trim()} end`;
+      return '';
+    }).join('\n');
+  }
+
+  // Hiding the main `print` function code by wrapping it in random junk
+  finalCode = finalCode.replace(/print(.*?)/g, (match, code) => {
+    const randomVar = generateRandomName('_printStealth');
+    return `${randomVar}(${code})`;
+  });
+
   document.getElementById("output").value = finalCode;
 
-  // Create download link
-  const blob = new Blob([finalCode], { type: 'text/plain' });
+  // Download
+  const blob = new Blob([finalCode], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
-  const downloadLink = document.createElement('a');
+  const downloadLink = document.createElement("a");
   downloadLink.href = url;
-  downloadLink.download = 'obfuscated.lua';
-  downloadLink.textContent = 'Download obfuscated.lua';
-  const downloadsDiv = document.getElementById('downloads');
-  downloadsDiv.innerHTML = '';
-  downloadsDiv.appendChild(downloadLink);
+  downloadLink.download = "obfuscated.lua";
+  downloadLink.textContent = "Download obfuscated.lua";
+  document.getElementById("downloads").innerHTML = '';
+  document.getElementById("downloads").appendChild(downloadLink);
 
-  // Optional: webhook send
+  // Webhook
   if (webhookUrl) {
     fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: finalCode }),
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: finalCode })
     }).then(res => {
-      if (res.ok) alert('Sent to webhook!');
-      else alert('Webhook failed!');
-    }).catch(() => alert('Webhook error!'));
+      if (res.ok) alert("Sent to webhook!");
+      else alert("Webhook failed!");
+    }).catch(() => alert("Webhook error!"));
   }
 });
